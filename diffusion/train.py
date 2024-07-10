@@ -5,17 +5,17 @@ from argparse import ArgumentParser
 
 import torch
 import wandb
-# os.environ["WANDB_MODE"] = "offline"
-# wandb.init()
+from pl_mis_model import MISModel
+from pl_tsp_model import TSPModel
+
+os.environ["WANDB_MODE"] = "offline"
+wandb.init()
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
-
-from pl_tsp_model import TSPModel
-from pl_mis_model import MISModel
 
 torch.cuda.amp.autocast(enabled=True)
 torch.cuda.empty_cache()
@@ -24,6 +24,7 @@ def arg_parser():
   parser = ArgumentParser(description='Train a Pytorch-Lightning diffusion model on a TSP dataset.')
   parser.add_argument('--task', type=str, required=True)
   parser.add_argument('--storage_path', type=str, required=True)
+  parser.add_argument('--training_split', type=str, default='data/tsp/tsp50_train_concorde.txt')
   parser.add_argument('--validation_split', type=str, default='data/tsp/tsp50_val_concorde.txt')
   parser.add_argument('--test_split', type=str, default='data/tsp/tsp50_test_concorde.txt')
   parser.add_argument('--validation_examples', type=int, default=64)
@@ -54,6 +55,7 @@ def arg_parser():
   parser.add_argument('--ckpt_path', type=str, default=None)
   parser.add_argument('--resume_weight_only', action='store_true')
 
+  parser.add_argument('--do_train', action='store_true')
   parser.add_argument('--do_valid_only', action='store_true')
   parser.add_argument('--do_test_only', action='store_true')
 
@@ -116,8 +118,10 @@ def main(args):
       check_val_every_n_epoch=1,
       strategy=DDPStrategy(static_graph=True),
       precision=16 if args.fp16 else 32,
-      inference_mode=False
+      # inference_mode=False
     )
+
+    trainer.fit(model=model, )
 
     rank_zero_info(
       f"{'-' * 100}\n"
@@ -126,6 +130,16 @@ def main(args):
     )
 
     ckpt_path = args.ckpt_path
+
+    if args.do_train:
+        if args.resume_weight_only:
+            model = model_class.load_from_checkpoint(ckpt_path, param_args=args)
+            trainer.fit(model)
+        else:
+            trainer.fit(model, ckpt_path=ckpt_path)
+
+        if args.do_test:
+            trainer.test(ckpt_path=checkpoint_callback.best_model_path)
 
     if args.do_valid_only:
       trainer.validate(model, ckpt_path=ckpt_path)

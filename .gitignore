@@ -6,5 +6,7 @@ ckpts
 *.pyc
 *.so
 *.o
+*.c
 ckpts/*
 models/*
+build

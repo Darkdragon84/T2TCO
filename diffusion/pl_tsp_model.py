@@ -1,10 +1,14 @@
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 import torch.utils.data
-from pytorch_lightning.utilities import rank_zero_info
+
 # import sys
 # os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # sys.path.insert(0, "..")  # for pyconcorde
@@ -12,19 +16,21 @@ from pytorch_lightning.utilities import rank_zero_info
 # import elkai
 from co_datasets.tsp_graph_dataset import TSPGraphDataset
 from pl_meta_model import COMetaModel
+from pytorch_lightning.utilities import rank_zero_info
+from torch.autograd import Variable
 from utils.diffusion_schedulers import InferenceSchedule
 from utils.tsp_utils import TSPEvaluator, batched_two_opt_torch, merge_tours
-from torch.autograd import Variable
-import torch.optim as optim
-
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 
 class TSPModel(COMetaModel):
   def __init__(self, param_args=None):
     super(TSPModel, self).__init__(param_args=param_args, node_feature_only=False)
-
+    
+    self.train_dataset = TSPGraphDataset(
+        data_file=os.path.join(self.args.storage_path, self.args.training_split),
+        sparse_factor=self.args.sparse_factor,
+    )
+    
     self.test_dataset = TSPGraphDataset(
       data_file=os.path.join(self.args.storage_path, self.args.test_split),
       sparse_factor=self.args.sparse_factor,
